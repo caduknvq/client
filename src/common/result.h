@@ -15,6 +15,7 @@
 #pragma once
 
 #include "asserts.h"
+#include <memory>
 
 namespace OCC {
 
@@ -73,20 +74,72 @@ public:
     }
 };
 
-namespace detail {
-struct OptionalNoErrorData{};
-}
-
+// Really really prefer std::optional once available
 template <typename T>
-class Optional : public Result<T, detail::OptionalNoErrorData>
+class Optional
 {
+    std::unique_ptr<T> _data;
 public:
-    using Result<T, detail::OptionalNoErrorData>::Result;
-
     Optional()
-        : Optional(detail::OptionalNoErrorData{})
     {
     }
+
+    Optional(T &&value)
+        : _data(std::make_unique<T>(std::move(value)))
+    {
+    }
+
+    Optional(const T &value)
+        : _data(std::make_unique<T>(value))
+    {
+    }
+
+    Optional(const Optional<T> &other)
+        : _data(other ? std::make_unique<T>(*other) : std::unique_ptr<T>())
+    {
+    }
+    Optional<T> &operator=(const Optional<T> &other)
+    {
+        if (this != &other) {
+            _data.reset(other ? std::make_unique<T>(*other) : std::unique_ptr<T>());
+        }
+        return *this;
+    }
+
+    Optional(Optional<T> &&other) = default;
+    Optional<T> &operator=(Optional<T> &&) = default;
+
+    T &operator*() &
+    {
+        return *_data;
+    }
+    const T &operator*() const &
+    {
+        return *_data;
+    }
+    T operator*() &&
+    {
+        auto value = T(std::move(*_data));
+        _data.reset(nullptr);
+        return value;
+    }
+    const T operator*() const &&
+    {
+        auto value = T(std::move(*_data));
+        _data.reset(nullptr);
+        return value;
+    }
+
+    T *operator->()
+    {
+        return _data.get();
+    }
+    const T *operator->() const
+    {
+        return _data.get();
+    }
+
+    explicit operator bool() const { return static_cast<bool>(_data); }
 };
 
 } // namespace OCC
